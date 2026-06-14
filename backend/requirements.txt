@@ -1,0 +1,44 @@
+fastapi==0.111.0
+uvicorn[standard]==0.30.1
+sqlalchemy==2.0.30
+alembic==1.13.1
+pydantic==2.7.1
+pydantic-settings==2.3.0
+python-multipart==0.0.9
+python-dotenv==1.0.1
+
+# YouTube API
+google-auth==2.30.0
+google-auth-oauthlib==1.2.0
+google-auth-httplib2==0.2.0
+google-api-python-client==2.133.0
+
+# Download
+yt-dlp==2024.5.27
+
+# Scheduling
+apscheduler==3.10.4
+
+# Task queue
+celery==5.4.0
+redis==5.0.6
+
+# HTTP client
+httpx==0.27.0
+aiofiles==23.2.1
+
+# Utils
+python-jose[cryptography]==3.3.0
+passlib[bcrypt]==1.7.4
+Pillow==10.3.0
+
+# Auto Creator
+anthropic>=0.25.0
+edge-tts>=6.1.9
+pytrends>=4.9.2
+
+# TikTok (httpx already included above)
+
+# Instagram (reads Chrome/Firefox cookies for authenticated API access)
+browser-cookie3>=0.19.1
+instaloader>=4.13
