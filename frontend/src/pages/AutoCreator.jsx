@@ -6,7 +6,7 @@ import toast from "react-hot-toast";
 import { channelsApi, autoCreatorApi, tiktokApi, mediaApi } from "../api";
 import {
   Zap, TrendingUp, Download, Search, Video, Eye, RefreshCw,
-  ChevronDown, ChevronUp, CheckCircle, Clock, Upload, X, Image, Film, FolderOpen,
+  ChevronDown, ChevronUp, CheckCircle, Clock, Upload, X, Image, Film, FolderOpen, Facebook,
 } from "lucide-react";
 
 const PLATFORM_OPTIONS = [
@@ -292,6 +292,8 @@ function ReupForm({ channels, tiktokAccounts }) {
   const [searching, setSearching] = useState(false);
   const [selectedVideo, setSelectedVideo] = useState(null);
   const [manualUrl, setManualUrl] = useState("");
+  const [channelUrl, setChannelUrl] = useState("");
+  const [loadingChannel, setLoadingChannel] = useState(false);
   const [logoFile, setLogoFile] = useState({ path: "", name: "" });
   const [outroFile, setOutroFile] = useState({ path: "", name: "" });
   const [uploadingLogo, setUploadingLogo] = useState(false);
@@ -303,6 +305,7 @@ function ReupForm({ channels, tiktokAccounts }) {
       review_before_upload: true,
       privacy_status: "private",
       category_id: "22",
+      custom_title: "",
       watermark_text: "",
       watermark_bottom: "",
       logo_position: "top-right",
@@ -336,6 +339,25 @@ function ReupForm({ channels, tiktokAccounts }) {
     }
   };
 
+  const handleFetchChannel = async () => {
+    if (!channelUrl.trim()) return toast.error("Dán URL kênh Facebook/YouTube");
+    setLoadingChannel(true);
+    setSelectedVideo(null);
+    try {
+      const data = await autoCreatorApi.channelVideos(channelUrl.trim(), 12);
+      setSearchResults(data.results || []);
+      if (!data.results?.length) {
+        toast.error("Không lấy được video nào từ kênh này");
+      } else {
+        toast.success(`Đã lấy ${data.results.length} video từ kênh`);
+      }
+    } catch (e) {
+      toast.error(e.message);
+    } finally {
+      setLoadingChannel(false);
+    }
+  };
+
   const onSubmit = (data) => {
     const sourceUrl = manualUrl.trim() || selectedVideo?.url;
     if (!sourceUrl && !searchQuery) {
@@ -345,6 +367,7 @@ function ReupForm({ channels, tiktokAccounts }) {
       topic: searchQuery || selectedVideo?.title || "video",
       channel_id: parseInt(data.channel_id),
       source_video_url: sourceUrl || undefined,
+      custom_title: data.custom_title?.trim() || undefined,
       watermark_text: data.watermark_text || "",
       watermark_bottom: data.watermark_bottom || "",
       logo_path: logoFile.path || "",
@@ -406,17 +429,61 @@ function ReupForm({ channels, tiktokAccounts }) {
           </div>
         )}
 
+        {/* Facebook / channel URL */}
+        <div className="border-t border-gray-800 pt-4">
+          <label className="label flex items-center gap-1.5 text-blue-400">
+            <Facebook size={14} /> Lấy reels từ URL kênh Facebook / YouTube
+          </label>
+          <div className="flex gap-2">
+            <input
+              className="input flex-1 text-sm"
+              placeholder="https://www.facebook.com/profile.php?id=...&sk=reels_tab"
+              value={channelUrl}
+              onChange={e => setChannelUrl(e.target.value)}
+              onKeyDown={e => e.key === "Enter" && (e.preventDefault(), handleFetchChannel())}
+            />
+            <button
+              type="button"
+              onClick={handleFetchChannel}
+              disabled={loadingChannel}
+              className="btn-secondary px-4 flex-shrink-0"
+            >
+              {loadingChannel ? <RefreshCw size={16} className="animate-spin" /> : <Download size={16} />}
+            </button>
+          </div>
+          <p className="text-gray-600 text-xs mt-1">
+            Dán link tab Reels của kênh → lấy danh sách reel mới nhất để chọn reup.
+            Facebook dùng cookies đăng nhập từ <code className="text-gray-500">facebook.com_cookies.txt</code> ở thư mục gốc.
+          </p>
+        </div>
+
         {/* Manual URL fallback */}
         <div>
           <label className="label text-xs text-gray-500">
-            Hoặc dán URL video trực tiếp
+            Hoặc dán URL 1 video / reel trực tiếp
           </label>
           <input
             className="input text-sm"
-            placeholder="https://www.youtube.com/watch?v=..."
+            placeholder="https://www.youtube.com/watch?v=...  ·  https://www.facebook.com/reel/..."
             value={manualUrl}
             onChange={e => setManualUrl(e.target.value)}
           />
+        </div>
+
+        {/* Custom title */}
+        <div>
+          <label className="label text-xs text-gray-500">
+            Tiêu đề tự đặt (tuỳ chọn)
+          </label>
+          <input
+            className="input text-sm"
+            placeholder="Để trống = giữ tiêu đề gốc của video"
+            maxLength={100}
+            {...register("custom_title")}
+          />
+          <p className="text-gray-600 text-xs mt-1">
+            Nhập tiêu đề riêng để đăng lên YouTube/TikTok thay vì dùng tên gốc.
+          </p>
         </div>
       </Section>
 

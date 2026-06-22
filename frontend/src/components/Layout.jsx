@@ -10,6 +10,7 @@ import {
   X,
   Zap,
   Music2,
+  Film,
 } from "lucide-react";
 import { useState } from "react";
 import clsx from "clsx";
@@ -18,6 +19,7 @@ const NAV = [
   { to: "/dashboard", icon: LayoutDashboard, label: "Dashboard" },
   { to: "/channels", icon: Youtube, label: "Kênh YouTube" },
   { to: "/new-job", icon: PlusCircle, label: "Tạo Video Mới" },
+  { to: "/movie-downloader", icon: Film, label: "Tải Phim" },
   { to: "/auto-creator", icon: Zap, label: "Tạo Tự Động (AI)" },
   { to: "/queue", icon: ListVideo, label: "Hàng Chờ" },
   { to: "/schedules", icon: Clock, label: "Lịch Đăng" },

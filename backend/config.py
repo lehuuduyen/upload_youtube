@@ -31,7 +31,7 @@ class Settings(BaseSettings):
     # YouTube OAuth2
     GOOGLE_CLIENT_SECRETS_FILE: str = str(BASE_DIR / "client_secrets.json")
     YOUTUBE_SCOPES: list[str] = ["https://www.googleapis.com/auth/youtube.upload"]
-    OAUTH_REDIRECT_URI: str = "http://localhost:8001/api/channels/oauth/callback"
+    OAUTH_REDIRECT_URI: str = "http://localhost:8002/api/channels/oauth/callback"
 
     # FFmpeg
     FFMPEG_PATH: str = "ffmpeg"
@@ -50,6 +50,25 @@ class Settings(BaseSettings):
 
     # Anthropic (Claude AI) — for auto-creator
     ANTHROPIC_API_KEY: str = ""
+
+    # General cookies.txt (Netscape format) — dùng để bypass Cloudflare / site cần đăng nhập
+    # Export từ browser bằng extension "Get cookies.txt LOCALLY"
+    COOKIES_FILE: str = str(BASE_DIR / "cookies.txt")
+
+    # Browser extractor (Playwright) — bắt link video từ site phim nhúng JS / Cloudflare
+    BROWSER_EXTRACT_ENABLED: bool = True   # bật fallback dùng browser khi yt-dlp fail
+    BROWSER_HEADLESS: bool = True          # False để mở cửa sổ thật (debug / giải challenge)
+    BROWSER_CHANNEL: str = ""              # "chrome" để dùng Chrome thật; "" = Chromium Playwright
+    BROWSER_TIMEOUT_MS: int = 45000        # thời gian tối đa chờ bắt stream
+
+    # Facebook — scrape reels từ profile/page (cần đăng nhập)
+    # Đường dẫn file cookies Netscape (cookies.txt) export từ trình duyệt đã login FB.
+    FACEBOOK_COOKIES_FILE: str = str(BASE_DIR / "facebook.com_cookies.txt")
+    # Hoặc lấy cookies trực tiếp từ trình duyệt: "chrome" | "firefox" | "edge" | "safari" | ""
+    FACEBOOK_COOKIES_FROM_BROWSER: str = ""
+
+    # Tự động xoá file video sau khi upload xong (để nhẹ ổ đĩa)
+    AUTO_DELETE_AFTER_UPLOAD: bool = True
 
     # Upload limits
     MAX_CONCURRENT_DOWNLOADS: int = 3

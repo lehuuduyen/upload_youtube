@@ -30,7 +30,14 @@ export const channelsApi = {
 // ── Downloads / Jobs ───────────────────────────────────────────────────────
 export const downloadsApi = {
   getInfo: (url) => api.post("/downloads/info", { url }),
-  createJob: (data) => api.post("/downloads/jobs", data), // data may include clip_paths: []
+  createJob: (data) => api.post("/downloads/jobs", data),
+  getCookiesStatus: () => api.get("/downloads/cookies/status"),
+  uploadCookies: (file) => {
+    const fd = new FormData();
+    fd.append("file", file);
+    return api.post("/downloads/cookies/upload", fd);
+  },
+  deleteCookies: () => api.delete("/downloads/cookies"),
 };
 
 // ── Queue ──────────────────────────────────────────────────────────────────
@@ -44,6 +51,7 @@ export const queueApi = {
   enqueue: (id) => api.post(`/queue/${id}/queue`),
   uploadNow: (id) => api.post(`/queue/${id}/upload-now`),
   reorder: (ids) => api.post("/queue/reorder", ids),
+  cleanupUploaded: () => api.post("/queue/cleanup-uploaded"),
 };
 
 // ── Schedules ──────────────────────────────────────────────────────────────
@@ -85,6 +93,8 @@ export const autoCreatorApi = {
   analyzeTrend: (data) => api.post("/auto-creator/analyze-trend", data),
   searchVideos: (query, maxResults = 10) =>
     api.get("/auto-creator/search-videos", { params: { query, max_results: maxResults } }),
+  channelVideos: (url, maxResults = 12) =>
+    api.get("/auto-creator/channel-videos", { params: { url, max_results: maxResults } }),
   reup: (data) => api.post("/auto-creator/reup", data),
   generate: (data) => api.post("/auto-creator/generate", data),
 };

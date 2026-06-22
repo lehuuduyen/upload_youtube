@@ -267,6 +267,10 @@ async def process_job(job_id: int, db: Session):
         job.completed_at = datetime.utcnow()
         save_progress(100, f"Upload complete! {result['url']}")
 
+        # Dọn file video để nhẹ ổ đĩa
+        _cleanup_after_upload(job)
+        db.commit()
+
     except Exception as e:
         clean_err = _strip_ansi(e)
         job.status = JobStatus.FAILED
@@ -328,12 +332,28 @@ async def upload_only(job_id: int, db: Session):
         job.completed_at = datetime.utcnow()
         save_progress(100, f"Upload complete! {result['url']}")
 
+        # Dọn file video để nhẹ ổ đĩa
+        _cleanup_after_upload(job)
+        db.commit()
+
     except Exception as e:
         clean_err = _strip_ansi(e)
         job.status = JobStatus.FAILED
         job.error_message = clean_err
         job.append_log(f"ERROR: {clean_err}")
         db.commit()
+
+
+def _cleanup_after_upload(job):
+    """Tự xoá file video sau upload nếu bật AUTO_DELETE_AFTER_UPLOAD."""
+    from config import settings
+    if not getattr(settings, "AUTO_DELETE_AFTER_UPLOAD", False):
+        return
+    try:
+        from services.file_cleanup import cleanup_job_files
+        cleanup_job_files(job, delete_processed=True)
+    except Exception as e:
+        job.append_log(f"Cleanup warning: {_strip_ansi(e)}")
 
 
 async def run_pending_jobs(db: Session, max_concurrent: int = 2):

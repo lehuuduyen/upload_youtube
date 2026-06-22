@@ -83,7 +83,29 @@ def health():
     return {"status": "ok", "version": settings.APP_VERSION}
 
 
+# Serve built frontend (production single-port deploy).
+# `setup.sh` builds the SPA to frontend/dist; if present, mount it at root so the
+# whole app is served from one PORT. SPA fallback returns index.html for client routes.
+_FRONTEND_DIST = os.getenv(
+    "FRONTEND_DIST",
+    os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "frontend", "dist"),
+)
+if os.path.isdir(_FRONTEND_DIST):
+    from fastapi.responses import FileResponse
+
+    app.mount("/assets", StaticFiles(directory=os.path.join(_FRONTEND_DIST, "assets")), name="assets")
+
+    @app.get("/{full_path:path}")
+    def spa_fallback(full_path: str):
+        candidate = os.path.join(_FRONTEND_DIST, full_path)
+        if full_path and os.path.isfile(candidate):
+            return FileResponse(candidate)
+        return FileResponse(os.path.join(_FRONTEND_DIST, "index.html"))
+
+
 if __name__ == "__main__":
     import uvicorn
-    reload = os.getenv("RELOAD", "true").lower() == "true"
-    uvicorn.run("main:app", host="0.0.0.0", port=8001, reload=reload)
+    host = os.getenv("HOST", "0.0.0.0")
+    port = int(os.getenv("PORT", "8002"))
+    reload = os.getenv("RELOAD", "false").lower() == "true"
+    uvicorn.run("main:app", host=host, port=port, reload=reload)

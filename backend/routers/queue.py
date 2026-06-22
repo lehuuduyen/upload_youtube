@@ -127,10 +127,10 @@ async def retry_job(job_id: int, db: Session = Depends(get_db)):
             asyncio.create_task(upload_only(job_id, db))
         elif job.downloaded_video_path and os.path.exists(job.downloaded_video_path):
             from routers.auto_creator import _run_reup_pipeline
-            asyncio.create_task(_run_reup_pipeline(job_id, job.auto_topic, None, "", "", False))
+            asyncio.create_task(_run_reup_pipeline(job_id, job.auto_topic, None, job.title or "", "", "", False))
         elif job.video_url:
             from routers.auto_creator import _run_reup_pipeline
-            asyncio.create_task(_run_reup_pipeline(job_id, job.auto_topic, job.video_url, "", "", False))
+            asyncio.create_task(_run_reup_pipeline(job_id, job.auto_topic, job.video_url, job.title or "", "", "", False))
         else:
             from routers.auto_creator import _run_auto_pipeline
             asyncio.create_task(_run_auto_pipeline(job_id, job.auto_topic, "", "nu_mien_bac", 60))
@@ -204,6 +204,30 @@ def reorder_queue(
             job.priority = total - idx
     db.commit()
     return {"message": "Queue reordered"}
+
+
+@router.post("/cleanup-uploaded")
+def cleanup_uploaded(db: Session = Depends(get_db)):
+    """Dọn file video (gốc + đã xử lý) của tất cả job đã UPLOADED — để nhẹ ổ đĩa."""
+    from services.file_cleanup import cleanup_job_files
+
+    jobs = db.query(VideoJob).filter(VideoJob.status == JobStatus.UPLOADED).all()
+    total_files = 0
+    total_bytes = 0
+    cleaned_jobs = 0
+    for job in jobs:
+        res = cleanup_job_files(job, delete_processed=True)
+        if res["removed"]:
+            cleaned_jobs += 1
+            total_files += len(res["removed"])
+            total_bytes += res["freed_bytes"]
+    db.commit()
+    return {
+        "cleaned_jobs": cleaned_jobs,
+        "removed_files": total_files,
+        "freed_mb": round(total_bytes / 1024 / 1024, 1),
+        "message": f"Đã dọn {total_files} file ({round(total_bytes/1024/1024,1)} MB) từ {cleaned_jobs} job",
+    }
 
 
 def _job_dict(job: VideoJob, include_log: bool = False) -> dict:

@@ -211,6 +211,10 @@ export default function Queue() {
     onSuccess: () => { toast.success("Đã từ chối"); qc.invalidateQueries("queue"); },
     onError: (e) => toast.error(e.message),
   });
+  const mutCleanup = useMutation(queueApi.cleanupUploaded, {
+    onSuccess: (res) => { toast.success(res.message || "Đã dọn file"); qc.invalidateQueries("queue"); },
+    onError: (e) => toast.error(e.message),
+  });
 
   const jobs = data?.items || [];
 
@@ -220,6 +224,18 @@ export default function Queue() {
         <h1 className="text-2xl font-bold text-white">Hàng Chờ Upload</h1>
         <div className="flex items-center gap-2">
           <span className="text-sm text-gray-500">{data?.total || 0} jobs</span>
+          <button
+            onClick={() => {
+              if (window.confirm("Xoá file video (gốc + đã xử lý) của tất cả job đã upload để nhẹ ổ đĩa?")) {
+                mutCleanup.mutate();
+              }
+            }}
+            disabled={mutCleanup.isLoading}
+            className="btn-ghost p-2 text-gray-400 hover:text-red-400"
+            title="Dọn file video đã upload"
+          >
+            <Trash2 size={16} />
+          </button>
           <button onClick={() => refetch()} className="btn-ghost p-2">
             <RefreshCw size={16} />
           </button>

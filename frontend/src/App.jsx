@@ -8,6 +8,7 @@ import Schedules from "./pages/Schedules";
 import Templates from "./pages/Templates";
 import AutoCreator from "./pages/AutoCreator";
 import TikTokAccounts from "./pages/TikTokAccounts";
+import MovieDownloader from "./pages/MovieDownloader";
 
 export default function App() {
   return (
@@ -17,6 +18,7 @@ export default function App() {
         <Route path="/dashboard" element={<Dashboard />} />
         <Route path="/channels" element={<Channels />} />
         <Route path="/new-job" element={<NewJob />} />
+        <Route path="/movie-downloader" element={<MovieDownloader />} />
         <Route path="/queue" element={<Queue />} />
         <Route path="/schedules" element={<Schedules />} />
         <Route path="/templates" element={<Templates />} />

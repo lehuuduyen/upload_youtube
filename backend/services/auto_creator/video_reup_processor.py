@@ -82,9 +82,11 @@ def download_video(
 ) -> str:
     """Tải video YouTube bằng yt-dlp, trả về đường dẫn file thực tế."""
     os.makedirs(os.path.dirname(output_path) or ".", exist_ok=True)
+    from services.auto_creator.facebook_finder import cookie_args
     cmd = (
         ["yt-dlp"]
         + _yt_dlp_base_args()
+        + cookie_args(url)
         + [
             "--format", quality,
             "--merge-output-format", "mp4",

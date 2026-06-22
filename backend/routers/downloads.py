@@ -2,8 +2,10 @@
 Download endpoints: validate URL, fetch info, trigger download jobs.
 """
 import re
+import os
+import shutil
 from typing import Optional
-from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks
+from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks, UploadFile, File
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
@@ -179,3 +181,43 @@ async def create_job(
         "message": f"Đã lên lịch lúc {upload_at.isoformat()}" if scheduled else "Job đã lưu — sẽ xử lý ngay",
         "upload_at": upload_at.isoformat() if upload_at else None,
     }
+
+
+# ── Cookies.txt management ────────────────────────────────────────────────────
+
+@router.get("/cookies/status")
+async def get_cookies_status():
+    """Kiểm tra cookies.txt có tồn tại không."""
+    from config import settings
+    exists = os.path.exists(settings.COOKIES_FILE)
+    size = os.path.getsize(settings.COOKIES_FILE) if exists else 0
+    return {
+        "exists": exists,
+        "path": settings.COOKIES_FILE,
+        "size_kb": round(size / 1024, 1) if exists else 0,
+    }
+
+
+@router.post("/cookies/upload")
+async def upload_cookies(file: UploadFile = File(...)):
+    """Upload cookies.txt để bypass Cloudflare."""
+    from config import settings
+    if not file.filename.endswith(".txt"):
+        raise HTTPException(400, "Chỉ chấp nhận file .txt (Netscape cookies format)")
+    content = await file.read()
+    # Validate basic Netscape cookies format
+    text = content.decode("utf-8", errors="ignore")
+    if "# Netscape HTTP Cookie File" not in text and "# HTTP Cookie File" not in text:
+        raise HTTPException(400, "File không đúng định dạng Netscape cookies. Dùng extension 'Get cookies.txt LOCALLY' để export.")
+    with open(settings.COOKIES_FILE, "wb") as f:
+        f.write(content)
+    return {"message": "Đã lưu cookies.txt", "path": settings.COOKIES_FILE}
+
+
+@router.delete("/cookies")
+async def delete_cookies():
+    """Xóa cookies.txt."""
+    from config import settings
+    if os.path.exists(settings.COOKIES_FILE):
+        os.remove(settings.COOKIES_FILE)
+    return {"message": "Đã xóa cookies.txt"}

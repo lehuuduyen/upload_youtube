@@ -1,0 +1,36 @@
+# Background server runtime
+server.pid
+server.log
+
+# Python virtualenv
+backend/venv/
+venv/
+.venv/
+
+# Python cache
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Node
+node_modules/
+frontend/dist/
+
+# OS
+.DS_Store
+
+# Secrets / credentials
+.env
+*.env
+client_secrets.json
+client_secret_*.json
+cookies.txt
+facebook_cookies.txt
+facebook.com_cookies.txt
+
+# App runtime storage (downloads, processed videos, db, thumbnails...)
+storage/
+backend/storage/
+
+# Logs
+*.log

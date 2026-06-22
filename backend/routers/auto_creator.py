@@ -37,6 +37,7 @@ class ReupRequest(BaseModel):
     topic: str
     channel_id: int
     source_video_url: Optional[str] = None  # URL cụ thể; nếu None → tự tìm
+    custom_title: Optional[str] = None     # tiêu đề tự đặt; nếu có → KHÔNG dùng tiêu đề gốc
     # Watermark text
     watermark_text: str = ""               # góc trên trái, VD: "@TênKênh"
     watermark_bottom: str = ""             # góc dưới phải, VD: "Theo dõi ngay!"
@@ -97,6 +98,30 @@ async def search_videos(query: str, max_results: int = 10):
         raise HTTPException(500, f"Tìm video thất bại: {e}")
 
 
+@router.get("/channel-videos")
+async def channel_videos(url: str, max_results: int = 12):
+    """Liệt kê video/reels từ URL kênh.
+
+    - Facebook profile/page → scrape reels (cần cookies, xem facebook_finder).
+    - YouTube channel / playlist / nguồn yt-dlp khác → flat-playlist.
+    """
+    from services.auto_creator.facebook_finder import is_facebook_url, list_facebook_reels
+    from services.auto_creator.video_finder import list_channel_videos
+    loop = asyncio.get_event_loop()
+    try:
+        if is_facebook_url(url):
+            results = await loop.run_in_executor(
+                None, lambda: list_facebook_reels(url, max_results)
+            )
+        else:
+            results = await loop.run_in_executor(
+                None, lambda: list_channel_videos(url, max_results)
+            )
+        return {"url": url, "results": results}
+    except Exception as e:
+        raise HTTPException(500, f"Lấy video từ kênh thất bại: {e}")
+
+
 @router.post("/analyze-trend")
 async def analyze_trend(body: TrendRequest):
     """Phân tích trend Google Trends cho chủ đề."""
@@ -123,7 +148,7 @@ async def reup_video(
         review_status="pending" if body.review_before_upload else "auto",
         upload_mode="manual" if body.review_before_upload else "immediate",
         auto_topic=body.topic,
-        title=f"[Reup] {body.topic}",
+        title=(body.custom_title or "").strip() or f"[Reup] {body.topic}",
         privacy_status=body.privacy_status,
         category_id=body.category_id,
         status=JobStatus.PENDING,
@@ -138,6 +163,7 @@ async def reup_video(
         job.id,
         body.topic,
         body.source_video_url,
+        (body.custom_title or "").strip(),
         body.watermark_text,
         body.watermark_bottom,
         body.logo_position,
@@ -200,6 +226,7 @@ async def _run_reup_pipeline(
     job_id: int,
     topic: str,
     source_video_url: Optional[str],
+    custom_title: str = "",
     watermark_text: str = "",
     watermark_bottom: str = "",
     logo_position: str = "top-right",
@@ -236,8 +263,9 @@ async def _run_reup_pipeline(
             source_video_url = best["url"]
             ago = best.get("uploaded_ago") or best.get("upload_date") or ""
             save(20, f"Đã chọn (mới nhất): {best['title']} — {ago}")
-            # Dùng title/tags của video gốc
-            job.title = best["title"][:100]
+            # Dùng title/tags của video gốc — trừ khi người dùng đã tự đặt tiêu đề
+            if not custom_title:
+                job.title = best["title"][:100]
             job.description = best.get("description", "")[:500]
             db.commit()
         else:
@@ -246,7 +274,8 @@ async def _run_reup_pipeline(
             try:
                 from services.auto_creator.video_finder import get_video_info
                 info = await loop.run_in_executor(None, lambda: get_video_info(source_video_url))
-                job.title = info["title"][:100]
+                if not custom_title:
+                    job.title = info["title"][:100]
                 job.description = info.get("description", "")[:500]
                 if info.get("tags"):
                     job.tags = info["tags"][:15]

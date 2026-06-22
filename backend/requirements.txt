@@ -14,7 +14,9 @@ google-auth-httplib2==0.2.0
 google-api-python-client==2.133.0
 
 # Download
-yt-dlp==2024.5.27
+yt-dlp>=2026.6.9
+curl_cffi>=0.7.0          # impersonate Chrome TLS để bypass Cloudflare
+playwright>=1.40.0        # bắt link video site nhúng JS (sau khi cài: python -m playwright install chromium)
 
 # Scheduling
 apscheduler==3.10.4

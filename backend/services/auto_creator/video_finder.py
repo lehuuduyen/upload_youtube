@@ -158,8 +158,84 @@ def search_youtube_videos(query: str, max_results: int = 10) -> list[dict]:
     return sorted(videos, key=lambda v: v.get("_ts") or 0, reverse=True)
 
 
+def list_channel_videos(channel_url: str, max_results: int = 12) -> list[dict]:
+    """
+    Liệt kê video/reels từ một URL kênh bất kỳ (Facebook reels_tab, YouTube channel, ...).
+
+    Dùng yt-dlp flat-playlist (nhanh, không tải chi tiết từng video). Trả về list video
+    sắp xếp theo thời gian đăng mới nhất trước (nếu có timestamp; nếu không giữ thứ tự gốc).
+    """
+    cmd = [
+        "yt-dlp",
+        channel_url,
+        "--dump-json",
+        "--flat-playlist",
+        "--no-download",
+        "--playlist-end", str(max_results),
+        "--no-warnings",
+        "--extractor-args", "youtube:player_client=android,web",
+        "--retries", "3",
+    ]
+    try:
+        result = subprocess.run(cmd, capture_output=True, text=True, timeout=120)
+    except subprocess.TimeoutExpired:
+        return []
+
+    videos = []
+    for line in result.stdout.strip().splitlines():
+        if not line.strip():
+            continue
+        try:
+            data = json.loads(line)
+        except json.JSONDecodeError:
+            continue
+
+        # flat-playlist entries có thể là _type=url (chỉ id + url)
+        vid_id = data.get("id") or ""
+        url = data.get("url") or data.get("webpage_url") or ""
+        if not url and vid_id:
+            url = f"https://www.youtube.com/watch?v={vid_id}"
+        if not url:
+            continue
+
+        dur_sec = data.get("duration")
+        dur_str = ""
+        if dur_sec:
+            m, s = divmod(int(dur_sec), 60)
+            dur_str = f"{m}:{s:02d}" if m < 60 else f"{m//60}:{m%60:02d}:{s:02d}"
+
+        thumbnails = data.get("thumbnails") or []
+        thumb_url = thumbnails[-1].get("url", "") if thumbnails else (data.get("thumbnail") or "")
+
+        ts = data.get("timestamp") or data.get("release_timestamp")
+        uploaded_ago = _relative_time_from_timestamp(ts)
+        upload_date = _parse_upload_date(data.get("upload_date", ""))
+
+        videos.append({
+            "id": vid_id or url,
+            "title": data.get("title") or "(không có tiêu đề)",
+            "url": url,
+            "thumbnail": thumb_url,
+            "view_count": data.get("view_count") or 0,
+            "like_count": data.get("like_count") or 0,
+            "duration_sec": dur_sec or 0,
+            "duration": dur_str,
+            "uploader": data.get("uploader") or data.get("channel") or data.get("uploader_id", ""),
+            "upload_date": upload_date,
+            "uploaded_ago": uploaded_ago,
+            "_ts": float(ts) if ts else 0,
+            "description": (data.get("description") or "")[:300],
+        })
+
+    # Nếu có timestamp → sort mới nhất trước; nếu không → giữ thứ tự gốc của kênh
+    if any(v["_ts"] for v in videos):
+        videos = sorted(videos, key=lambda v: v.get("_ts") or 0, reverse=True)
+    return videos
+
+
 def get_video_info(url: str) -> dict:
-    """Lấy thông tin chi tiết của một video YouTube cụ thể."""
+    """Lấy thông tin chi tiết của một video YouTube / reel Facebook cụ thể."""
+    from services.auto_creator.facebook_finder import cookie_args
     cmd = [
         "yt-dlp",
         url,
@@ -167,7 +243,7 @@ def get_video_info(url: str) -> dict:
         "--no-download",
         "--no-playlist",
         "--quiet",
-    ]
+    ] + cookie_args(url)
     try:
         result = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
         data = json.loads(result.stdout.strip())
