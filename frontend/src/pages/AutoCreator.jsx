@@ -239,6 +239,10 @@ function VideoCard({ video, selected, onSelect }) {
     ? `${Math.round(video.view_count / 1_000)}K`
     : video.view_count?.toString() || "?";
 
+  const usedLabel = video.used
+    ? video.used_status === "uploaded" ? "Đã đăng" : "Đã có job"
+    : null;
+
   return (
     <div
       onClick={() => onSelect(video)}
@@ -246,8 +250,15 @@ function VideoCard({ video, selected, onSelect }) {
         selected
           ? "border-red-500 ring-2 ring-red-500/30 bg-red-600/5"
           : "border-gray-700 hover:border-gray-500 bg-gray-900"
-      }`}
+      } ${video.used ? "opacity-60" : ""}`}
     >
+      {usedLabel && (
+        <span className={`absolute top-2 left-2 z-10 text-white text-[10px] font-medium px-1.5 py-0.5 rounded ${
+          video.used_status === "uploaded" ? "bg-green-600" : "bg-yellow-600"
+        }`}>
+          ✓ {usedLabel}
+        </span>
+      )}
       {selected && (
         <div className="absolute top-2 right-2 z-10 bg-red-600 rounded-full p-0.5">
           <CheckCircle size={14} className="text-white" />

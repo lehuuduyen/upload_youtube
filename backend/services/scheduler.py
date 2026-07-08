@@ -42,10 +42,12 @@ def parse_cron(expression: str, timezone: str = None) -> CronTrigger:
 
 async def _run_upload_schedule(schedule_id: int):
     """Called by APScheduler — processes the next queued video for the schedule's channel."""
+    import os
+
     from database import SessionLocal
     from models.schedule import UploadSchedule
     from models.video_job import VideoJob, JobStatus
-    from workers.job_worker import process_job
+    from workers.job_worker import process_job, upload_only
 
     db = SessionLocal()
     try:
@@ -70,7 +72,17 @@ async def _run_upload_schedule(schedule_id: int):
         if not job:
             return  # nothing to upload
 
-        await process_job(job.id, db)
+        # Đã vào hàng đợi = người dùng đã duyệt — bỏ gate manual để cron upload
+        # được (process_job gặp upload_mode="manual" sẽ trả job về READY mãi mãi).
+        if job.upload_mode == "manual":
+            job.upload_mode = "immediate"
+            db.commit()
+
+        if job.processed_video_path and os.path.exists(job.processed_video_path):
+            # Video đã xử lý xong → upload thẳng, không chạy lại FFmpeg pipeline
+            await upload_only(job.id, db)
+        else:
+            await process_job(job.id, db)
     finally:
         db.close()
 

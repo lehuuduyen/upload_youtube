@@ -384,6 +384,9 @@ async def run_pending_jobs(db: Session, max_concurrent: int = 2):
         db.query(VideoJob)
         .filter(
             VideoJob.status == JobStatus.PENDING,
+            # Job reup/AI (auto_topic) có pipeline riêng chạy background —
+            # không nhặt ở đây kẻo chạy trùng 2 lần song song
+            VideoJob.auto_topic == None,
             (VideoJob.upload_at <= now) | (VideoJob.upload_at == None),
         )
         .order_by(VideoJob.priority.desc(), VideoJob.created_at.asc())

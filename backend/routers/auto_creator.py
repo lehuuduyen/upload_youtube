@@ -84,8 +84,37 @@ class AICreateRequest(BaseModel):
 
 # ── Endpoints ───────────────────────────────────────────────────────────────
 
+def _mark_used(results: list[dict], db: Session) -> list[dict]:
+    """Đánh dấu video đã từng tạo job reup: used=True + used_status.
+
+    Đối chiếu URL kết quả với VideoJob.video_url trong DB — job reup lưu URL
+    video gốc nên fetch lại list vẫn biết clip nào đã đăng / đang trong queue.
+    """
+    urls = [r.get("url") for r in results if r.get("url")]
+    if not urls:
+        return results
+
+    rows = (
+        db.query(VideoJob.video_url, VideoJob.status)
+        .filter(VideoJob.video_url.in_(urls))
+        .all()
+    )
+    status_by_url: dict[str, str] = {}
+    for u, s in rows:
+        val = s.value if hasattr(s, "value") else str(s)
+        # Một URL có thể có nhiều job (retry/tạo lại) — ưu tiên hiển thị "uploaded"
+        if status_by_url.get(u) != "uploaded":
+            status_by_url[u] = val
+
+    for r in results:
+        s = status_by_url.get(r.get("url"))
+        r["used"] = s is not None
+        r["used_status"] = s  # uploaded | queued | ready | failed | ...
+    return results
+
+
 @router.get("/search-videos")
-async def search_videos(query: str, max_results: int = 10):
+async def search_videos(query: str, max_results: int = 10, db: Session = Depends(get_db)):
     """Tìm kiếm video trending YouTube theo từ khoá."""
     from services.auto_creator.video_finder import search_youtube_videos
     loop = asyncio.get_event_loop()
@@ -93,13 +122,13 @@ async def search_videos(query: str, max_results: int = 10):
         results = await loop.run_in_executor(
             None, lambda: search_youtube_videos(query, max_results)
         )
-        return {"query": query, "results": results}
+        return {"query": query, "results": _mark_used(results, db)}
     except Exception as e:
         raise HTTPException(500, f"Tìm video thất bại: {e}")
 
 
 @router.get("/channel-videos")
-async def channel_videos(url: str, max_results: int = 12):
+async def channel_videos(url: str, max_results: int = 12, db: Session = Depends(get_db)):
     """Liệt kê video/reels từ URL kênh.
 
     - Facebook profile/page → scrape reels (cần cookies, xem facebook_finder).
@@ -117,7 +146,7 @@ async def channel_videos(url: str, max_results: int = 12):
             results = await loop.run_in_executor(
                 None, lambda: list_channel_videos(url, max_results)
             )
-        return {"url": url, "results": results}
+        return {"url": url, "results": _mark_used(results, db)}
     except Exception as e:
         raise HTTPException(500, f"Lấy video từ kênh thất bại: {e}")
 
@@ -148,6 +177,8 @@ async def reup_video(
         review_status="pending" if body.review_before_upload else "auto",
         upload_mode="manual" if body.review_before_upload else "immediate",
         auto_topic=body.topic,
+        # Lưu URL nguồn để lần fetch list sau đánh dấu được clip đã dùng
+        video_url=body.source_video_url,
         title=(body.custom_title or "").strip() or f"[Reup] {body.topic}",
         privacy_status=body.privacy_status,
         category_id=body.category_id,
@@ -261,6 +292,7 @@ async def _run_reup_pipeline(
             # Auto-chọn video mới nhất (results đã sort theo timestamp mới nhất trước)
             best = results[0]
             source_video_url = best["url"]
+            job.video_url = source_video_url
             ago = best.get("uploaded_ago") or best.get("upload_date") or ""
             save(20, f"Đã chọn (mới nhất): {best['title']} — {ago}")
             # Dùng title/tags của video gốc — trừ khi người dùng đã tự đặt tiêu đề
