@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "react-query";
 import toast from "react-hot-toast";
-import { queueApi, channelsApi, mediaApi } from "../api";
+import { queueApi, channelsApi, mediaApi, apiUrl } from "../api";
 import StatusBadge from "../components/StatusBadge";
 import { RefreshCw, Trash2, Play, X, Upload, ExternalLink, ChevronDown, ChevronUp, Eye, CheckCircle, XCircle } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
@@ -19,7 +19,7 @@ function VideoPreviewModal({ jobId, title, onClose }) {
           className="w-full max-h-[70vh]"
           controls
           autoPlay
-          src={`/api/media/preview/${jobId}`}
+          src={apiUrl(`/media/preview/${jobId}`)}
         />
       </div>
     </div>

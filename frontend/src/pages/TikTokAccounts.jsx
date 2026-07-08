@@ -3,7 +3,7 @@ import { useQuery, useMutation, useQueryClient } from "react-query";
 import { useSearchParams } from "react-router-dom";
 import { useForm } from "react-hook-form";
 import toast, { Toaster } from "react-hot-toast";
-import { tiktokApi } from "../api";
+import { tiktokApi, apiUrl } from "../api";
 import { Plus, Trash2, Link, Unlink, Music2 } from "lucide-react";
 import { useEffect } from "react";
 
@@ -59,7 +59,7 @@ export default function TikTokAccounts() {
         <div className="text-gray-400 space-y-1 text-xs">
           <div>1. Vào <span className="text-blue-400">developers.tiktok.com</span> → Tạo app → Bật <strong>Content Posting API</strong></div>
           <div>2. Thêm vào <span className="text-gray-300">.env</span>: <code className="bg-gray-800 px-1 rounded">TIKTOK_CLIENT_KEY=...</code> và <code className="bg-gray-800 px-1 rounded">TIKTOK_CLIENT_SECRET=...</code></div>
-          <div>3. Redirect URI: <code className="bg-gray-800 px-1 rounded">http://localhost:8001/api/tiktok/oauth/callback</code></div>
+          <div>3. Redirect URI: <code className="bg-gray-800 px-1 rounded">{apiUrl("/tiktok/oauth/callback")}</code> (giá trị TIKTOK_REDIRECT_URI trong .env backend)</div>
         </div>
       </div>
 

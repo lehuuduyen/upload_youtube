@@ -248,6 +248,48 @@ def download_video(
         )
 
 
+def _try_image_wrapped_download(
+    stream_url: str,
+    headers: dict,
+    cookies_file: Optional[str],
+    output_dir: str,
+    out_name: str,
+    progress_callback,
+) -> Optional[str]:
+    """
+    Kiểm tra m3u8 có segment bọc ảnh giả không; nếu có thì tải bằng
+    hls_image_downloader. Trả về path mp4, hoặc None nếu không phải kiểu này.
+    """
+    try:
+        import curl_cffi.requests as cffi_req
+        from services.hls_image_downloader import (
+            fetch_segments_list, looks_image_wrapped, download_image_wrapped_hls,
+        )
+
+        segs = fetch_segments_list(stream_url, headers)
+        if not segs:
+            return None
+        first = cffi_req.get(
+            segs[0], headers=headers, impersonate="chrome", timeout=60
+        ).content
+        if not looks_image_wrapped(first):
+            return None
+
+        if progress_callback:
+            progress_callback(0, "Phát hiện segment bọc ảnh — tải kiểu chuyên dụng...")
+        output_path = os.path.join(output_dir, out_name)
+        return download_image_wrapped_hls(
+            stream_url,
+            output_path,
+            referer=headers.get("Referer", ""),
+            user_agent=headers.get("User-Agent", ""),
+            cookies_file=cookies_file,
+            progress_callback=progress_callback,
+        )
+    except Exception:
+        return None  # lỗi → để yt-dlp thử cách thường
+
+
 def _download_video_via_browser(
     url: str,
     output_dir: str,
@@ -263,16 +305,35 @@ def _download_video_via_browser(
     if progress_callback:
         progress_callback(0, "Mở browser bắt link video...")
 
+    cookies_file = _cookies_file_or_none()
     res = extract_stream(
         url,
-        cookies_file=_cookies_file_or_none(),
+        cookies_file=cookies_file,
         timeout_ms=getattr(settings, "BROWSER_TIMEOUT_MS", 45000),
     )
     stream_url = res["stream_url"]
     headers = {"Referer": res["referer"], "User-Agent": res["user_agent"]}
 
+    # Cảnh báo sớm nếu phát hiện DRM (Widevine/PlayReady) — không tải được
+    enc = res.get("encryption")
+    if enc == "drm":
+        raise ValueError(
+            "Nguồn dùng DRM (Widevine/PlayReady) — không thể tải bản xem được. "
+            "Hãy dùng nguồn khác không mã hoá DRM."
+        )
+
     prefix = f"job_{job_id}_" if job_id else ""
     out_id = job_id or "video"
+
+    # Phát hiện segment bị bọc ảnh giả (image-wrapped TS) — vd phimbom.us
+    if ".m3u8" in stream_url.lower():
+        wrapped_out = _try_image_wrapped_download(
+            stream_url, headers, cookies_file, output_dir,
+            f"{prefix}{out_id}.mp4", progress_callback,
+        )
+        if wrapped_out:
+            return wrapped_out
+
     output_template = os.path.join(output_dir, f"{prefix}{out_id}.%(ext)s")
 
     # opts sạch cho m3u8 trực tiếp — plain headers, không impersonate/curl_cffi
@@ -287,6 +348,9 @@ def _download_video_via_browser(
         "http_headers": headers,
         "hls_use_mpegts": False,
     }
+    # Truyền cookies để yt-dlp lấy được AES-128 key (key URI thường cần session/cookies)
+    if cookies_file:
+        opts["cookiefile"] = cookies_file
 
     with yt_dlp.YoutubeDL(opts) as ydl:
         info = ydl.extract_info(stream_url, download=True)

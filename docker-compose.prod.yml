@@ -1,0 +1,51 @@
+# Production deploy: backend + Caddy (tự động HTTPS qua Let's Encrypt).
+# Frontend deploy riêng trên Vercel.
+#
+# Chạy:  docker compose -f docker-compose.prod.yml up -d --build
+# Cần file .env.production ở cạnh file này (xem .env.production.example)
+
+services:
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    env_file:
+      - .env.production
+    environment:
+      - APP_BASE_DIR=/app
+      - DATABASE_URL=sqlite:////app/storage/app.db
+    volumes:
+      - ./storage:/app/storage
+      - ./client_secrets.json:/app/client_secrets.json:ro
+      - ./client_secret_nhi.json:/app/client_secret_nhi.json:ro
+      - ./client_secret_thiennga.json:/app/client_secret_thiennga.json:ro
+      - ./cookies.txt:/app/cookies.txt
+      - ./facebook.com_cookies.txt:/app/facebook.com_cookies.txt
+    expose:
+      - "8001"
+    restart: unless-stopped
+    # Giới hạn log để không đầy ổ đĩa khi chạy 24/7
+    logging:
+      driver: json-file
+      options:
+        max-size: "20m"
+        max-file: "5"
+
+  caddy:
+    image: caddy:2-alpine
+    ports:
+      - "80:80"
+      - "443:443"
+    env_file:
+      - .env.production
+    volumes:
+      - ./deploy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      - backend
+    restart: unless-stopped
+
+volumes:
+  caddy_data:
+  caddy_config:

@@ -3,7 +3,7 @@ import { useQuery, useMutation } from "react-query";
 import { useForm } from "react-hook-form";
 import { useNavigate } from "react-router-dom";
 import toast from "react-hot-toast";
-import { channelsApi, downloadsApi, templatesApi, mediaApi, trendingApi } from "../api";
+import { channelsApi, downloadsApi, templatesApi, mediaApi, trendingApi, apiUrl } from "../api";
 import { Search, Music, Video, Settings2, FileText, Zap, Clock, Upload, Film, X, RefreshCw, FolderOpen, TrendingUp, ChevronDown, ChevronUp, Eye, RotateCcw, CalendarClock, CheckSquare, Plus } from "lucide-react";
 
 const QUALITY_OPTIONS = ["best", "4k", "1080p", "720p", "480p"];
@@ -204,7 +204,7 @@ function LogoBrowser({ onPick, onClose }) {
           {files.map(f => (
             <button key={f.path} type="button" onClick={() => onPick(f)}
               className="w-full flex items-center gap-3 px-3 py-2 text-left hover:bg-gray-700">
-              <img src={`/api/media/logo-preview?path=${encodeURIComponent(f.path)}`}
+              <img src={apiUrl(`/media/logo-preview?path=${encodeURIComponent(f.path)}`)}
                 onError={e => { e.target.style.display = "none"; }}
                 className="w-8 h-8 object-contain rounded bg-gray-700 flex-shrink-0" alt="" />
               <span className="text-sm text-gray-300 truncate flex-1">{f.filename}</span>

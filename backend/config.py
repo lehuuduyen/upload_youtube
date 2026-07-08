@@ -28,6 +28,10 @@ class Settings(BaseSettings):
     OUTROS_DIR: str = str(BASE_DIR / "storage" / "outros")
     UPLOADS_DIR: str = str(BASE_DIR / "storage" / "uploads")
 
+    # CORS — thêm domain frontend production (Vercel), phân cách bằng dấu phẩy
+    # Ví dụ: CORS_ORIGINS=https://myapp.vercel.app,https://app.mydomain.com
+    CORS_ORIGINS: str = ""
+
     # YouTube OAuth2
     GOOGLE_CLIENT_SECRETS_FILE: str = str(BASE_DIR / "client_secrets.json")
     YOUTUBE_SCOPES: list[str] = ["https://www.googleapis.com/auth/youtube.upload"]

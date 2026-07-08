@@ -91,6 +91,110 @@ def get_video_duration(file_path: str) -> float:
     return float(info.get("format", {}).get("duration", 0))
 
 
+def validate_video_file(file_path: str) -> tuple[bool, str]:
+    """
+    Kiểm tra file có phải video hợp lệ không (tránh upload/encode file rác).
+
+    File rip từ HLS mã hoá / stream sai thường ra file rác: ffprobe đọc không có
+    video stream thật, không có duration, hoặc codec kiểu ảnh (png/mjpeg) 1x1.
+
+    Trả về (ok, lý_do). ok=False kèm lý do dễ hiểu nếu file không dùng được.
+    """
+    try:
+        info = get_media_info(file_path)
+    except Exception as e:
+        return False, f"Không đọc được file (ffprobe lỗi): {e}"
+
+    streams = info.get("streams", [])
+    vstreams = [s for s in streams if s.get("codec_type") == "video"]
+    if not vstreams:
+        return False, "File không có luồng video"
+
+    v = vstreams[0]
+    codec = v.get("codec_name", "")
+    w = v.get("width") or 0
+    h = v.get("height") or 0
+
+    # Codec kiểu ảnh tĩnh hoặc kích thước vô lý → file rác (thường do HLS mã hoá)
+    if codec in ("png", "mjpeg", "bmp", "gif") or w <= 16 or h <= 16:
+        return False, (
+            f"File tải về không phải video ({codec} {w}x{h}) — "
+            "nguồn có thể dùng HLS mã hoá/DRM, không tải được bản xem được"
+        )
+
+    duration = info.get("format", {}).get("duration")
+    if not duration or float(duration) < 0.5:
+        return False, "File không có thời lượng hợp lệ (có thể bị hỏng/mã hoá)"
+
+    return True, "OK"
+
+
+def normalize_for_youtube(
+    input_path: str,
+    output_path: str,
+    progress_callback: Optional[Callable] = None,
+) -> str:
+    """
+    Chuẩn hoá file để YouTube xử lý được (tránh lỗi "can't process file").
+
+    File rip từ HLS/m3u8 thường có moov atom ở cuối, codec lạ, hoặc khung hình
+    biến thiên → YouTube từ chối. Hàm này:
+      - Nếu video đã là H.264 và audio AAC: chỉ remux + faststart (nhanh, stream copy).
+      - Nếu khác: re-encode về H.264 + AAC, faststart, yuv420p (an toàn tối đa).
+    """
+    os.makedirs(os.path.dirname(output_path), exist_ok=True)
+
+    vcodec = acodec = None
+    try:
+        info = get_media_info(input_path)
+        for s in info.get("streams", []):
+            if s.get("codec_type") == "video" and vcodec is None:
+                vcodec = s.get("codec_name")
+            elif s.get("codec_type") == "audio" and acodec is None:
+                acodec = s.get("codec_name")
+    except Exception:
+        pass
+
+    compatible = vcodec in ("h264", "h265", "hevc") and acodec == "aac"
+
+    if compatible:
+        # Remux nhanh: giữ nguyên stream, chỉ chuyển moov atom lên đầu
+        args = [
+            "-i", input_path,
+            "-c", "copy",
+            "-movflags", "+faststart",
+            output_path,
+        ]
+        try:
+            run_ffmpeg(args, progress_callback)
+            return output_path
+        except Exception:
+            pass  # remux fail → fallback re-encode
+
+    # Re-encode về định dạng YouTube-safe
+    args = [
+        "-i", input_path,
+        "-c:v", "libx264", "-preset", "medium", "-crf", "20",
+        "-pix_fmt", "yuv420p",
+        "-c:a", "aac", "-b:a", "192k",
+        "-movflags", "+faststart",
+        output_path,
+    ]
+    run_ffmpeg(args, progress_callback)
+    return output_path
+
+
+async def normalize_for_youtube_async(
+    input_path: str,
+    output_path: str,
+    progress_callback: Optional[Callable] = None,
+) -> str:
+    import asyncio
+    return await asyncio.to_thread(
+        normalize_for_youtube, input_path, output_path, progress_callback
+    )
+
+
 def mute_range_audio(
     video_path: str,
     output_path: str,

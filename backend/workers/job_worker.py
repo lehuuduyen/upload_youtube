@@ -58,6 +58,12 @@ async def process_job(job_id: int, db: Session):
             db.commit()
             save_progress(30, f"Video downloaded: {os.path.basename(video_path)}")
 
+            # Kiểm tra file có phải video hợp lệ không (tránh xử lý/upload file rác)
+            from services.processor import validate_video_file
+            ok, reason = await asyncio.to_thread(validate_video_file, video_path)
+            if not ok:
+                raise ValueError(f"File tải về không hợp lệ: {reason}")
+
         # ── Step 1b: Ghép uploaded clips ────────────────────────────────────
         raw_clips = job.clip_paths  # None or list
         if raw_clips:
@@ -178,8 +184,17 @@ async def process_job(job_id: int, db: Session):
                 progress_callback=crop_progress,
             )
         else:
-            import shutil
-            shutil.copy2(source_video, processed_path)
+            # Giữ nguyên khung hình, nhưng chuẩn hoá để YouTube xử lý được
+            # (faststart + re-encode nếu codec lạ — tránh lỗi "can't process file")
+            save_progress(72, "Chuẩn hoá file cho YouTube...")
+            from services.processor import normalize_for_youtube_async
+
+            def norm_progress(pct, msg):
+                save_progress(72 + pct * 0.13, msg)
+
+            await normalize_for_youtube_async(
+                source_video, processed_path, norm_progress
+            )
 
         job.processed_video_path = processed_path
         db.commit()

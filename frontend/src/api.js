@@ -1,7 +1,14 @@
 import axios from "axios";
 
+// Production (Vercel): đặt VITE_API_BASE_URL = https://api.mydomain.com/api
+// Dev: để trống → dùng "/api" và Vite proxy sang backend local.
+export const API_BASE = import.meta.env.VITE_API_BASE_URL || "/api";
+
+// Dùng cho URL trực tiếp (src của <video>/<img>) thay vì hardcode "/api/..."
+export const apiUrl = (path) => `${API_BASE}${path.startsWith("/") ? path : `/${path}`}`;
+
 const api = axios.create({
-  baseURL: "/api",
+  baseURL: API_BASE,
   timeout: 30000,
 });
 

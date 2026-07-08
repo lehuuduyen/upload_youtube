@@ -1,0 +1,19 @@
+# Caddy tự động lấy SSL Let's Encrypt cho API_DOMAIN (đặt trong .env.production).
+# DNS của API_DOMAIN phải trỏ về IP server trước khi start.
+
+{$API_DOMAIN} {
+	encode gzip
+
+	reverse_proxy backend:8001 {
+		# Upload video lớn + stream preview → tăng timeout
+		transport http {
+			read_timeout 30m
+			write_timeout 30m
+		}
+	}
+
+	# Cho phép upload file lớn (clip video)
+	request_body {
+		max_size 2GB
+	}
+}

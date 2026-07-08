@@ -178,6 +178,15 @@ def _extract_blocking(
         if found:
             page.wait_for_timeout(1500)
 
+        # Chẩn đoán mã hoá: tải nội dung m3u8 bằng chính session của trang
+        encryption = "none"
+        if found:
+            best_pre = sorted(dict.fromkeys(found), key=_score_stream, reverse=True)[0]
+            if ".m3u8" in best_pre.lower():
+                encryption = _detect_hls_encryption(page, best_pre)
+            elif ".mpd" in best_pre.lower():
+                encryption = "drm"  # DASH .mpd thường đi kèm Widevine/PlayReady
+
         try:
             browser.close()
         except Exception:
@@ -196,11 +205,70 @@ def _extract_blocking(
     return {
         "stream_url": best,
         "referer": referer,
+        "encryption": encryption,
         "user_agent": captured_headers.get("user_agent") or _DEFAULT_UA,
         "title": title,
         "page_url": page_url,
         "all_streams": list(dict.fromkeys(found)),
     }
+
+
+def _detect_hls_encryption(page, m3u8_url: str) -> str:
+    """
+    Tải nội dung m3u8 bằng session của trang, phân loại mã hoá:
+      "none"     — không mã hoá, tải bình thường
+      "aes-128"  — AES-128 (yt-dlp tự giải mã nếu lấy được key)
+      "drm"      — Widevine/PlayReady/SAMPLE-AES (không tải được)
+      "unknown"  — không đọc được m3u8
+    Nếu là master playlist, đọc tiếp 1 variant để kiểm tra EXT-X-KEY.
+    """
+    def _fetch(url):
+        try:
+            return page.evaluate(
+                """async (u) => {
+                    try {
+                        const r = await fetch(u, {credentials: 'include'});
+                        return await r.text();
+                    } catch (e) { return ''; }
+                }""",
+                url,
+            )
+        except Exception:
+            return ""
+
+    text = _fetch(m3u8_url)
+    if not text or "#EXTM3U" not in text:
+        return "unknown"
+
+    def _classify(content: str) -> Optional[str]:
+        up = content.upper()
+        if "SAMPLE-AES" in up or "WIDEVINE" in up or "PLAYREADY" in up or "com.apple.streamingkeydelivery".upper() in up:
+            return "drm"
+        if "#EXT-X-KEY" in up or "#EXT-X-SESSION-KEY" in up:
+            if "METHOD=AES-128" in up:
+                return "aes-128"
+            if "METHOD=NONE" in up:
+                return None
+            return "drm"  # method khác AES-128 → coi như DRM
+        return None
+
+    cls = _classify(text)
+    if cls:
+        return cls
+
+    # Master playlist → lấy 1 variant tuyệt đối rồi kiểm tra tiếp
+    from urllib.parse import urljoin
+    for line in text.splitlines():
+        line = line.strip()
+        if line and not line.startswith("#") and ".m3u8" in line.lower():
+            variant = urljoin(m3u8_url, line)
+            vtext = _fetch(variant)
+            vcls = _classify(vtext)
+            if vcls:
+                return vcls
+            break
+
+    return "none"
 
 
 def _clean_referer(captured: Optional[str], page_url: str, stream_url: str) -> str:
