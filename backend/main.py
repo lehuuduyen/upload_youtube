@@ -54,6 +54,8 @@ _cors_origins += [o.strip() for o in settings.CORS_ORIGINS.split(",") if o.strip
 app.add_middleware(
     CORSMiddleware,
     allow_origins=_cors_origins,
+    # Cho phép mọi deploy Vercel (*.vercel.app: production, branch, preview đổi URL liên tục)
+    allow_origin_regex=r"https://.*\.vercel\.app",
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
