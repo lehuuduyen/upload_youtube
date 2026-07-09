@@ -218,7 +218,7 @@ function LogoBrowser({ onPick, onClose }) {
 }
 
 // selectedIds: number[] — mảng ID các video đã chọn, theo thứ tự chọn
-function TrendingInbox({ onToggle, selectedIds }) {
+function TrendingInbox({ onToggle, onSelectAll, onClearAll, selectedIds }) {
   const [open, setOpen] = useState(true);
   const [fetching, setFetching] = useState(false);
   const [showImport, setShowImport] = useState(false);
@@ -530,7 +530,27 @@ function TrendingInbox({ onToggle, selectedIds }) {
               </p>
             </div>
           ) : (
-            <div className="grid grid-cols-2 gap-2 max-h-80 overflow-y-auto pr-1">
+            <>
+              {/* Chọn tất cả / bỏ chọn */}
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-xs text-gray-500">
+                  {selectedIds.length > 0 ? `${selectedIds.length}/${items.length} đã chọn` : `${items.length} video`}
+                </span>
+                <div className="flex gap-1.5">
+                  <button type="button" onClick={() => onSelectAll(items)}
+                    disabled={items.length === 0 || selectedIds.length >= items.length}
+                    className="flex items-center gap-1 text-xs px-2 py-1 border border-gray-600 rounded text-gray-400 hover:text-white hover:border-gray-400 transition-colors disabled:opacity-40">
+                    <CheckSquare size={11} /> Chọn tất cả
+                  </button>
+                  {selectedIds.length > 0 && (
+                    <button type="button" onClick={onClearAll}
+                      className="flex items-center gap-1 text-xs px-2 py-1 border border-gray-600 rounded text-gray-400 hover:text-red-400 hover:border-red-500/60 transition-colors">
+                      <X size={11} /> Bỏ chọn
+                    </button>
+                  )}
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-2 max-h-80 overflow-y-auto pr-1">
               {items.map((item) => {
                 const selIdx = selectedIds.indexOf(item.id);
                 const isSelected = selIdx !== -1;
@@ -575,7 +595,8 @@ function TrendingInbox({ onToggle, selectedIds }) {
                   </div>
                 );
               })}
-            </div>
+              </div>
+            </>
           )}
         </div>
       )}
@@ -649,6 +670,17 @@ export default function NewJob() {
       return [...prev, { item, upload_at: "" }];
     });
   };
+
+  // Chọn tất cả video đang hiển thị trong inbox (giữ những cái đã chọn trước đó)
+  const handleSelectAllTrending = (items) => {
+    setSelectedTrendings(prev => {
+      const have = new Set(prev.map(s => s.item.id));
+      const added = items.filter(i => !have.has(i.id)).map(item => ({ item, upload_at: "" }));
+      return [...prev, ...added];
+    });
+  };
+
+  const handleClearTrending = () => setSelectedTrendings([]);
 
   const handleSetUploadAt = (itemId, val) => {
     setSelectedTrendings(prev =>
@@ -833,6 +865,8 @@ export default function NewJob() {
         {/* Trending Inbox */}
         <TrendingInbox
           onToggle={handleToggleTrending}
+          onSelectAll={handleSelectAllTrending}
+          onClearAll={handleClearTrending}
           selectedIds={selectedTrendings.map(s => s.item.id)}
         />
 
