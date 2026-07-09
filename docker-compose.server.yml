@@ -1,0 +1,34 @@
+# Deploy backend NGAY TRÊN SERVER NÀY (5.78.145.172).
+# Khác docker-compose.prod.yml: KHÔNG chạy Caddy — system nginx đã giữ 80/443
+# và tự lo SSL (certbot). Backend chỉ bind 127.0.0.1:8010 -> nginx reverse proxy.
+#
+# Chạy:  docker compose -f docker-compose.server.yml up -d --build
+
+services:
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: upload_youtube-backend
+    env_file:
+      - .env.production
+    environment:
+      - APP_BASE_DIR=/app
+      - DATABASE_URL=sqlite:////app/storage/app.db
+    volumes:
+      - ./storage:/app/storage
+      - ./client_secrets.json:/app/client_secrets.json:ro
+      - ./client_secret_nhi.json:/app/client_secret_nhi.json:ro
+      - ./client_secret_thiennga.json:/app/client_secret_thiennga.json:ro
+      - ./cookies.txt:/app/cookies.txt
+      - ./facebook.com_cookies.txt:/app/facebook.com_cookies.txt
+    # Chỉ mở trên localhost — nginx trên host mới proxy ra ngoài. Không đụng port
+    # của pm2/docker khác (8000/8001 dev, 3000/3001/4000/7777/8081/8888/9001/9002...).
+    ports:
+      - "127.0.0.1:8010:8001"
+    restart: unless-stopped
+    logging:
+      driver: json-file
+      options:
+        max-size: "20m"
+        max-file: "5"

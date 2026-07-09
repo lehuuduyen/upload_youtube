@@ -36,6 +36,8 @@ class Settings(BaseSettings):
     GOOGLE_CLIENT_SECRETS_FILE: str = str(BASE_DIR / "client_secrets.json")
     YOUTUBE_SCOPES: list[str] = ["https://www.googleapis.com/auth/youtube.upload"]
     OAUTH_REDIRECT_URI: str = "http://localhost:8002/api/channels/oauth/callback"
+    # Frontend URL để redirect về sau khi OAuth xong (production: domain Vercel)
+    FRONTEND_URL: str = "http://localhost:5173"
 
     # FFmpeg
     FFMPEG_PATH: str = "ffmpeg"

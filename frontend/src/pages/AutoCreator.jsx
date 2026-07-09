@@ -301,7 +301,8 @@ function ReupForm({ channels, tiktokAccounts }) {
   const [searchQuery, setSearchQuery] = useState("");
   const [searchResults, setSearchResults] = useState([]);
   const [searching, setSearching] = useState(false);
-  const [selectedVideo, setSelectedVideo] = useState(null);
+  const [selectedIds, setSelectedIds] = useState(() => new Set());
+  const [submitting, setSubmitting] = useState(false);
   const [manualUrl, setManualUrl] = useState("");
   const [channelUrl, setChannelUrl] = useState("");
   const [loadingChannel, setLoadingChannel] = useState(false);
@@ -327,18 +328,34 @@ function ReupForm({ channels, tiktokAccounts }) {
 
   const platform = watch("platform");
 
-  const { mutate: reup, isLoading } = useMutation(autoCreatorApi.reup, {
-    onSuccess: (data) => {
-      toast.success(`Job #${data.id} đã tạo! Đang tải video...`);
-      navigate("/queue");
-    },
-    onError: (e) => toast.error(e.message),
-  });
+  const selectedVideos = searchResults.filter(v => selectedIds.has(v.id));
+
+  const toggleSelect = (video) => {
+    setSelectedIds(prev => {
+      const next = new Set(prev);
+      if (next.has(video.id)) next.delete(video.id);
+      else next.add(video.id);
+      return next;
+    });
+  };
+
+  const selectAllUnused = () => {
+    const ids = searchResults.filter(v => !v.used).map(v => v.id);
+    if (!ids.length) {
+      toast.error("Tất cả video đều đã đăng / đã có job");
+      return;
+    }
+    setSelectedIds(new Set(ids));
+    const skipped = searchResults.length - ids.length;
+    toast.success(`Đã chọn ${ids.length} video${skipped ? ` (bỏ qua ${skipped} đã đăng)` : ""}`);
+  };
+
+  const clearSelection = () => setSelectedIds(new Set());
 
   const handleSearch = async () => {
     if (!searchQuery.trim()) return toast.error("Nhập từ khoá tìm kiếm");
     setSearching(true);
-    setSelectedVideo(null);
+    setSelectedIds(new Set());
     try {
       const data = await autoCreatorApi.searchVideos(searchQuery, 10);
       setSearchResults(data.results || []);
@@ -353,7 +370,7 @@ function ReupForm({ channels, tiktokAccounts }) {
   const handleFetchChannel = async () => {
     if (!channelUrl.trim()) return toast.error("Dán URL kênh Facebook/YouTube");
     setLoadingChannel(true);
-    setSelectedVideo(null);
+    setSelectedIds(new Set());
     try {
       const data = await autoCreatorApi.channelVideos(channelUrl.trim(), 12);
       setSearchResults(data.results || []);
@@ -369,16 +386,10 @@ function ReupForm({ channels, tiktokAccounts }) {
     }
   };
 
-  const onSubmit = (data) => {
-    const sourceUrl = manualUrl.trim() || selectedVideo?.url;
-    if (!sourceUrl && !searchQuery) {
-      return toast.error("Chọn một video hoặc nhập URL video");
-    }
-    const payload = {
-      topic: searchQuery || selectedVideo?.title || "video",
+  const onSubmit = async (data) => {
+    // Branding + cấu hình chung áp dụng cho mọi video được chọn
+    const branding = {
       channel_id: parseInt(data.channel_id),
-      source_video_url: sourceUrl || undefined,
-      custom_title: data.custom_title?.trim() || undefined,
       watermark_text: data.watermark_text || "",
       watermark_bottom: data.watermark_bottom || "",
       logo_path: logoFile.path || "",
@@ -393,7 +404,45 @@ function ReupForm({ channels, tiktokAccounts }) {
       privacy_status: data.privacy_status,
       category_id: data.category_id,
     };
-    reup(payload);
+
+    // Xác định danh sách video cần reup
+    let targets;
+    if (selectedVideos.length > 0) {
+      targets = selectedVideos.map(v => ({ url: v.url, title: v.title }));
+    } else if (manualUrl.trim()) {
+      targets = [{ url: manualUrl.trim(), title: null }];
+    } else if (searchQuery.trim()) {
+      targets = [{ url: undefined, title: searchQuery.trim() }]; // để backend tự tìm
+    } else {
+      return toast.error("Chọn ít nhất 1 video hoặc nhập URL video");
+    }
+
+    // custom_title chỉ áp dụng khi reup đúng 1 video (nhiều video sẽ giữ tiêu đề gốc)
+    const customTitle = targets.length === 1 ? (data.custom_title?.trim() || undefined) : undefined;
+
+    setSubmitting(true);
+    let ok = 0, fail = 0;
+    for (const t of targets) {
+      try {
+        await autoCreatorApi.reup({
+          ...branding,
+          topic: t.title || searchQuery.trim() || "video",
+          source_video_url: t.url || undefined,
+          custom_title: customTitle,
+        });
+        ok++;
+      } catch {
+        fail++;
+      }
+    }
+    setSubmitting(false);
+
+    if (ok) {
+      toast.success(`Đã tạo ${ok} job reup${fail ? `, ${fail} lỗi` : ""}! Đang tải video...`);
+      navigate("/queue");
+    } else {
+      toast.error(`Tạo job thất bại (${fail} lỗi)`);
+    }
   };
 
   const authenticatedChannels = channels.filter(c => c.is_authenticated);
@@ -424,16 +473,38 @@ function ReupForm({ channels, tiktokAccounts }) {
 
         {searchResults.length > 0 && (
           <div>
-            <p className="text-gray-500 text-xs mb-2">
-              {selectedVideo ? `Đã chọn: ${selectedVideo.title}` : "Chọn video muốn reup:"}
-            </p>
+            <div className="flex items-center justify-between mb-2 gap-2">
+              <p className="text-gray-500 text-xs">
+                {selectedIds.size > 0
+                  ? `Đã chọn ${selectedIds.size} video`
+                  : "Chọn video muốn reup (bấm để chọn nhiều):"}
+              </p>
+              <div className="flex items-center gap-2 flex-shrink-0">
+                <button
+                  type="button"
+                  onClick={selectAllUnused}
+                  className="text-xs text-red-400 hover:text-red-300 font-medium"
+                >
+                  Chọn tất cả (bỏ qua đã đăng)
+                </button>
+                {selectedIds.size > 0 && (
+                  <button
+                    type="button"
+                    onClick={clearSelection}
+                    className="text-xs text-gray-500 hover:text-gray-300"
+                  >
+                    Bỏ chọn
+                  </button>
+                )}
+              </div>
+            </div>
             <div className="grid grid-cols-2 gap-2 max-h-96 overflow-y-auto">
               {searchResults.map(v => (
                 <VideoCard
                   key={v.id}
                   video={v}
-                  selected={selectedVideo?.id === v.id}
-                  onSelect={setSelectedVideo}
+                  selected={selectedIds.has(v.id)}
+                  onSelect={toggleSelect}
                 />
               ))}
             </div>
@@ -628,11 +699,15 @@ function ReupForm({ channels, tiktokAccounts }) {
 
       <button
         type="submit"
-        disabled={isLoading || (!selectedVideo && !manualUrl && !searchQuery)}
+        disabled={submitting || (selectedIds.size === 0 && !manualUrl && !searchQuery)}
         className="btn-primary w-full py-3 text-base"
       >
         <Download size={18} />
-        {isLoading ? "Đang xử lý..." : "Tải & Reup Video"}
+        {submitting
+          ? "Đang tạo job..."
+          : selectedIds.size > 1
+          ? `Tải & Reup ${selectedIds.size} Video`
+          : "Tải & Reup Video"}
       </button>
 
       <div className="card bg-gray-900/50 text-xs text-gray-500 space-y-1">

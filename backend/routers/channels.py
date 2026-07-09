@@ -10,6 +10,7 @@ from fastapi.responses import RedirectResponse
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
+from config import settings
 from database import get_db
 from models.channel import Channel
 from services import youtube_service
@@ -163,7 +164,7 @@ def oauth_callback(
         db.commit()
 
         # Redirect to frontend
-        return RedirectResponse(url="http://localhost:5173/channels?oauth=success")
+        return RedirectResponse(url=f"{settings.FRONTEND_URL}/channels?oauth=success")
     except Exception as e:
         raise HTTPException(400, f"OAuth error: {e}")
 

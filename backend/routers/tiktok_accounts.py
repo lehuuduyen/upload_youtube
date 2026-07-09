@@ -60,7 +60,7 @@ def oauth_callback(code: str, state: str, db: Session = Depends(get_db)):
         account_id = int(state)
         acc = db.query(TikTokAccount).filter(TikTokAccount.id == account_id).first()
         if not acc:
-            return RedirectResponse(f"http://localhost:5173/tiktok?oauth=error&msg=account_not_found")
+            return RedirectResponse(f"{settings.FRONTEND_URL}/tiktok?oauth=error&msg=account_not_found")
 
         token_data = tiktok_service.exchange_code_for_token(code)
         acc.access_token = token_data["access_token"]
@@ -80,10 +80,10 @@ def oauth_callback(code: str, state: str, db: Session = Depends(get_db)):
             pass
 
         db.commit()
-        return RedirectResponse(f"http://localhost:5173/tiktok?oauth=success")
+        return RedirectResponse(f"{settings.FRONTEND_URL}/tiktok?oauth=success")
 
     except Exception as e:
-        return RedirectResponse(f"http://localhost:5173/tiktok?oauth=error&msg={str(e)[:100]}")
+        return RedirectResponse(f"{settings.FRONTEND_URL}/tiktok?oauth=error&msg={str(e)[:100]}")
 
 
 def _account_dict(a: TikTokAccount) -> dict:
