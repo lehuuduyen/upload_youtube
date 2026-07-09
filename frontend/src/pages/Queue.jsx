@@ -119,9 +119,10 @@ function JobRow({ job, onRetry, onCancel, onDelete, onUploadNow, onApprove, onRe
               </button>
             </>
           )}
-          {/* Upload now — ready & not pending review */}
-          {job.status === "ready" && job.review_status !== "pending" && (
-            <button onClick={() => onUploadNow(job.id)} className="btn-ghost p-2 text-green-400" title="Upload ngay">
+          {/* Upload now — video đang chờ (kể cả chờ lịch) hoặc đã ready, trừ khi chờ duyệt */}
+          {["pending", "queued", "ready"].includes(job.status) && job.review_status !== "pending" && (
+            <button onClick={() => onUploadNow(job.id)} className="btn-ghost p-2 text-green-400"
+              title={job.status === "ready" ? "Upload ngay" : "Bỏ qua lịch chờ — xử lý & upload ngay"}>
               <Upload size={14} />
             </button>
           )}
